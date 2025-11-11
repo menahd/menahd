@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Personnalisez votre photo de profil pour soutenir Le Rosny Que Nous Voulons</title>
+    <link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body>
+    <div class="container">
+        <h1>Montrez votre soutien à la liste<br>Le Rosny Que Nous Voulons</h1>
+        
+        <div class="info">
+            <strong>Instructions :</strong> Glissez pour repositionner • Boutons +/- pour zoomer • Téléchargez quand c'est bon !
+        </div>
+
+        <div class="upload-section">
+            <!-- Boutons mobiles -->
+            <div class="upload-buttons mobile">
+                <div class="file-input-wrapper">
+                    <input type="file" id="photoInputMobile" accept="image/*">
+                    <label for="photoInputMobile" class="upload-btn">
+                        📷 Choisir une photo
+                    </label>
+                </div>
+                <div class="file-input-wrapper">
+                    <input type="file" id="selfieInputMobile" accept="image/*" capture="user">
+                    <label for="selfieInputMobile" class="upload-btn selfie">
+                        📸 Prendre un selfie
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Bouton desktop -->
+            <div class="upload-buttons desktop">
+                <div class="file-input-wrapper">
+                    <input type="file" id="photoInput" accept="image/*">
+                    <label for="photoInput" class="file-input-label">
+                        📷 Choisir votre photo
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-section" id="previewSection">
+            <div class="crop-info">
+                ✨ Aperçu final avec décor • Glissez la photo pour la repositionner
+            </div>
+            <div class="preview-container">
+                <canvas id="previewCanvas"></canvas>
+            </div>
+            <div class="controls">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" id="zoomOut">➖</button>
+                    <button class="zoom-btn" id="zoomIn">➕</button>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" id="downloadBtn">
+                        ⬇️ Télécharger
+                    </button>
+                    <button class="btn btn-secondary" id="resetBtn">
+                        🔄 Changer
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div> Chargement...
+        </div>
+
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        // Nom du fichier décor (à modifier selon votre fichier)
+        const FRAME_FILE = 'frame.png';
+        const FINAL_SIZE = 1836; // Taille finale
+
+        const photoInput = document.getElementById('photoInput');
+        const photoInputMobile = document.getElementById('photoInputMobile');
+        const selfieInputMobile = document.getElementById('selfieInputMobile');
+        const previewSection = document.getElementById('previewSection');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const loading = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+        const zoomInBtn = document.getElementById('zoomIn');
+        const zoomOutBtn = document.getElementById('zoomOut');
+
+        let finalCanvas, finalContext, frameImage = null;
+        let previewCtx, sourceImage = null;
+        let cropData = {
+            scale: 1,
+            x: 0,
+            y: 0,
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            lastTouchDistance: 0
+        };
+
+        // Charger le décor au chargement de la page
+        window.addEventListener('load', () => {
+            loadFrame();
+        });
+
+        // Charger le décor PNG
+        function loadFrame() {
+            const img = new Image();
+            
+            img.onload = () => {
+                frameImage = img;
+                errorDiv.style.display = 'none';
+            };
+            
+            img.onerror = () => {
+                if (window.location.protocol === 'file:') {
+                    const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+                    const fullPath = currentPath + FRAME_FILE;
+                    
+                    const img2 = new Image();
+                    img2.onload = () => {
+                        frameImage = img2;
+                        errorDiv.style.display = 'none';
+                    };
+                    img2.onerror = () => {
+                        showError('Le fichier décor (frame.png) est introuvable. Veuillez utiliser un serveur local ou vérifier que le fichier existe.');
+                    };
+                    img2.src = fullPath;
+                } else {
+                    showError('Le fichier décor (frame.png) est introuvable. Assurez-vous qu\'il existe dans le même dossier.');
+                }
+            };
+            
+            img.src = FRAME_FILE;
+        }
+
+        // Fonction pour gérer le chargement d'une photo
+        function handlePhotoSelect(file) {
+            if (!file) return;
+            loading.style.display = 'block';
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                startCrop(event.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Event listeners pour tous les inputs
+        photoInput.addEventListener('change', (e) => {
+            handlePhotoSelect(e.target.files[0]);
+        });
+
+        photoInputMobile.addEventListener('change', (e) => {
+            handlePhotoSelect(e.target.files[0]);
+        });
+
+        selfieInputMobile.addEventListener('change', (e) => {
+            handlePhotoSelect(e.target.files[0]);
+        });
+
+        // Démarrer le recadrage avec aperçu
+        function startCrop(imageDataUrl) {
+            const img = new Image();
+            img.onload = () => {
+                sourceImage = img;
+                setupPreviewCanvas(img);
+                previewSection.style.display = 'block';
+                loading.style.display = 'none';
+            };
+            img.onerror = () => {
+                showError('Impossible de charger la photo sélectionnée.');
+                loading.style.display = 'none';
+            };
+            img.src = imageDataUrl;
+        }
+
+        // Configurer le canvas d'aperçu
+        function setupPreviewCanvas(img) {
+            const maxWidth = Math.min(500, window.innerWidth - 40);
+            const displaySize = maxWidth;
+            
+            previewCanvas.width = displaySize;
+            previewCanvas.height = displaySize;
+            previewCanvas.style.width = displaySize + 'px';
+            previewCanvas.style.height = displaySize + 'px';
+            
+            previewCtx = previewCanvas.getContext('2d');
+            
+            // Créer le canvas final pour le rendu haute résolution
+            if (!finalCanvas) {
+                finalCanvas = document.createElement('canvas');
+                finalCanvas.width = FINAL_SIZE;
+                finalCanvas.height = FINAL_SIZE;
+                finalContext = finalCanvas.getContext('2d');
+            }
+            
+            // Calculer le scale initial pour remplir le cercle
+            const circleRadius = FINAL_SIZE / 2;
+            const photoSize = circleRadius * 2;
+            const scale = Math.max(
+                photoSize / img.width,
+                photoSize / img.height
+            ) * 1.1;
+            
+            cropData.scale = scale;
+            cropData.x = (FINAL_SIZE - img.width * scale) / 2;
+            cropData.y = (FINAL_SIZE - img.height * scale) / 2;
+            
+            // Ajouter les événements
+            setupEvents();
+            
+            // Première mise à jour
+            updatePreview();
+        }
+
+        // Configurer les événements
+        function setupEvents() {
+            // Souris
+            previewCanvas.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', endDrag);
+            
+            // Tactile
+            previewCanvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            previewCanvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            previewCanvas.addEventListener('touchend', endDrag);
+            
+            // Zoom
+            zoomInBtn.addEventListener('click', () => {
+                cropData.scale *= 1.15;
+                constrainPosition();
+                updatePreview();
+            });
+            
+            zoomOutBtn.addEventListener('click', () => {
+                cropData.scale *= 0.85;
+                constrainPosition();
+                updatePreview();
+            });
+        }
+
+        // Mettre à jour l'aperçu avec le décor
+        function updatePreview() {
+            if (!sourceImage || !frameImage || !previewCtx) return;
+            
+            // Attendre que le décor soit chargé
+            if (!frameImage.complete) {
+                setTimeout(updatePreview, 100);
+                return;
+            }
+            
+            // Effacer le canvas final complètement
+            finalContext.clearRect(0, 0, FINAL_SIZE, FINAL_SIZE);
+            
+            // Calculer comment la photo doit être positionnée pour le recadrage
+            // On convertit les coordonnées de cropData vers les coordonnées finales
+            const circleRadius = FINAL_SIZE / 2;
+            const centerX = FINAL_SIZE / 2;
+            const centerY = FINAL_SIZE / 2;
+            
+            // Zone du cercle dans le système de coordonnées de cropData (FINAL_SIZE)
+            const circleLeft = centerX - circleRadius;
+            const circleTop = centerY - circleRadius;
+            
+            // Convertir vers les coordonnées de l'image source originale
+            const sourceX = (circleLeft - cropData.x) / cropData.scale;
+            const sourceY = (circleTop - cropData.y) / cropData.scale;
+            const sourceSize = (circleRadius * 2) / cropData.scale;
+            
+            // Calculer le scale pour que la zone visible remplisse le canvas
+            const targetSize = FINAL_SIZE;
+            const scaleToFit = targetSize / sourceSize;
+            
+            // Calculer où dessiner sur le canvas final
+            // On centre la zone recadrée
+            const scaledSourceSize = sourceSize * scaleToFit;
+            const destX = (FINAL_SIZE - scaledSourceSize) / 2;
+            const destY = (FINAL_SIZE - scaledSourceSize) / 2;
+            
+            // Dessiner la zone recadrée de la photo, agrandie pour remplir le canvas
+            finalContext.drawImage(
+                sourceImage,
+                sourceX,
+                sourceY,
+                sourceSize,
+                sourceSize,
+                destX,
+                destY,
+                scaledSourceSize,
+                scaledSourceSize
+            );
+            
+            // Dessiner le décor par-dessus avec toute sa transparence
+            // Le décor PNG avec transparence masquera les parties nécessaires
+            finalContext.drawImage(frameImage, 0, 0, FINAL_SIZE, FINAL_SIZE);
+            
+            // Redessiner sur le canvas d'aperçu à l'échelle
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            previewCtx.drawImage(finalCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+        }
+
+        // Contraindre la position
+        function constrainPosition() {
+            const imgWidth = sourceImage.width * cropData.scale;
+            const imgHeight = sourceImage.height * cropData.scale;
+            const circleRadius = FINAL_SIZE / 2;
+            const centerX = FINAL_SIZE / 2;
+            const centerY = FINAL_SIZE / 2;
+            
+            // Limites pour que l'image couvre toujours le cercle
+            const minX = centerX - circleRadius - imgWidth;
+            const maxX = centerX + circleRadius;
+            const minY = centerY - circleRadius - imgHeight;
+            const maxY = centerY + circleRadius;
+            
+            cropData.x = Math.max(minX, Math.min(maxX, cropData.x));
+            cropData.y = Math.max(minY, Math.min(maxY, cropData.y));
+        }
+
+        // Gestion du glisser-déposer
+        function startDrag(e) {
+            cropData.isDragging = true;
+            const coords = getCoordinates(e);
+            cropData.startX = coords.x;
+            cropData.startY = coords.y;
+        }
+
+        function drag(e) {
+            if (!cropData.isDragging) return;
+            e.preventDefault();
+            
+            const coords = getCoordinates(e);
+            const dx = coords.x - cropData.startX;
+            const dy = coords.y - cropData.startY;
+            
+            // Convertir le déplacement de l'écran vers le canvas final
+            const scaleRatio = FINAL_SIZE / previewCanvas.width;
+            cropData.x += dx * scaleRatio;
+            cropData.y += dy * scaleRatio;
+            
+            constrainPosition();
+            
+            cropData.startX = coords.x;
+            cropData.startY = coords.y;
+            
+            updatePreview();
+        }
+
+        function endDrag() {
+            cropData.isDragging = false;
+            cropData.lastTouchDistance = 0;
+        }
+
+        function getCoordinates(e) {
+            const rect = previewCanvas.getBoundingClientRect();
+            if (e.touches && e.touches.length > 0) {
+                return {
+                    x: e.touches[0].clientX - rect.left,
+                    y: e.touches[0].clientY - rect.top
+                };
+            }
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                startDrag(e);
+            } else if (e.touches.length === 2) {
+                // Zoom avec pincement
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                cropData.lastTouchDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+            }
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                drag(e);
+            } else if (e.touches.length === 2 && cropData.lastTouchDistance > 0) {
+                // Zoom avec pincement
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const distance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                const scaleChange = distance / cropData.lastTouchDistance;
+                cropData.scale *= scaleChange;
+                constrainPosition();
+                updatePreview();
+                
+                cropData.lastTouchDistance = distance;
+            }
+        }
+
+        // Télécharger l'image finale (optimisé pour mobile)
+        downloadBtn.addEventListener('click', () => {
+            if (!finalCanvas) return;
+            
+            // Détecter iOS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            
+            finalCanvas.toBlob((blob) => {
+                // Sur iOS, utiliser Web Share API pour sauvegarder dans la pellicule
+                if (isIOS && navigator.share) {
+                    const file = new File([blob], 'photo-profil-lrqnv.png', { type: 'image/png' });
+                    
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: 'Photo de profil personnalisée'
+                        }).then(() => {
+                            showSuccess('✓ Image sauvegardée dans la pellicule !');
+                        }).catch((err) => {
+                            // Si l'utilisateur annule ou en cas d'erreur, fallback sur téléchargement
+                            downloadImage(blob);
+                        });
+                    } else {
+                        // Fallback si Web Share ne supporte pas les fichiers
+                        downloadImage(blob);
+                    }
+                } else {
+                    // Pour les autres appareils, téléchargement classique
+                    downloadImage(blob);
+                }
+            }, 'image/png', 1.0);
+        });
+
+        // Fonction pour télécharger l'image
+        function downloadImage(blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'photo-profil-lrqnv.png';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 100);
+            
+            showSuccess('✓ Image téléchargée !');
+        }
+
+        // Afficher un message de succès
+        function showSuccess(message) {
+            const originalText = downloadBtn.textContent;
+            downloadBtn.textContent = message;
+            downloadBtn.style.background = '#4caf50';
+            setTimeout(() => {
+                downloadBtn.textContent = originalText;
+                downloadBtn.style.background = '';
+            }, 2000);
+        }
+
+        // Réinitialiser
+        resetBtn.addEventListener('click', () => {
+            photoInput.value = '';
+            photoInputMobile.value = '';
+            selfieInputMobile.value = '';
+            previewSection.style.display = 'none';
+            errorDiv.style.display = 'none';
+            sourceImage = null;
+        });
+
+        // Afficher une erreur
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            loading.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
