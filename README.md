@@ -1,29 +1,26 @@
-﻿- 👋 Hi, I’m @menahd
-- 👀 I’m interested in smart cities
-- 🌱 I’m currently learning blockchain-based technologies systems, DAMs, ...
-- 💞️ I’m looking to collaborate on development of smart territories initiatives (gov-tech, civic-tech, ...)
-- 📫 How to reach me: @menahd on twitter / LinkedIn
+﻿# Hey, I'm Menahd 👋
 
-<!---
-menahd/menahd is a special repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
-
+**Smart cities & civic-tech enthusiast** | Developer interested in blockchain-based systems
 
 ---
 
-## Projet : Outil de personnalisation de photo de profil
+## About Me
 
-Application web pour créer une photo de profil avec un décor superposé, recadrage interactif et export PNG haute résolution.
+- 👀 Passionate about **smart territories** and **civic-tech initiatives**
+- 🌱 Currently exploring blockchain systems, DAMs (Digital Asset Management), and distributed technologies
+- 💞️ Looking to collaborate on **gov-tech** and **civic-tech** projects
+- 📍 Based in the Paris area
 
-- Import d’une photo ou selfie (mobile/desktop)
-- Déplacement au doigt/souris, zoom (+/– et pincement)
-- Superposition du décor `frame.png` (transparence)
-- Export PNG 1836×1836, support iOS Web Share
+## Let's Connect
 
-Utilisation rapide:
-1) Ouvrir `index.html` dans un navigateur moderne
-2) Choisir une photo / prendre un selfie
-3) Ajuster (glisser/zoomer) puis Télécharger
+- 🐦 Twitter: [@menahd](https://twitter.com/menahd)
+- 💼 Website: [menahd-ouchenir.com](http://menahd-ouchenir.com)
+- 📧 Email: m.ouchenir@hotmail.fr
 
-Personnalisation: renommer le décor dans le code si besoin (`FRAME_FILE`).
+---
+
+**The difference between theory and practice:** In theory, there is no difference. In practice, there is. 😄
+
+---
+
+<!--- menahd/menahd is a special repository because its README.md (this file) appears on your GitHub profile. --->
